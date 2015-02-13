@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+
+<html>
+
+<head>
+    <script type="text/javascript" src="d3/d3.min.js"></script>
+    <script src="http://labratrevenge.com/d3-tip/javascripts/d3.tip.v0.6.3.js"></script>
+
+    <style> /* set the CSS */
+
+    body {
+        font: 10px sans-serif;
+    }
+
+    .axis path,
+    .axis line {
+        fill: none;
+        stroke: #000;
+        shape-rendering: crispEdges;
+    }
+
+    .x.axis path {
+        display: none;
+    }
+
+    .line {
+        fill: none;
+        stroke: steelblue;
+        stroke-width: 4px;
+    }
+
+    body { font-family: sans-serif; }
+    section {width: 80%;
+        min-width: 500px;
+        max-width: 900px;
+        border: thin solid #e9e9e9;
+        padding: 20px 40px;
+        margin: 20px auto;
+        border-radius: 20px;}
+    iframe { width: 100%;
+        height: auto;
+        min-height: 400px;
+    }
+    img {
+        width: 100%;
+        max-width: 750px;
+        height:auto;
+    }
+    a { background-color: #dbdcdc;
+        padding: 10px 20px;
+        border-radius: 10px;
+        color: #474747;
+        text-decoration: none;}
+    ul {
+        font-size: 8pt;
+        list-style-type: none;
+        width: auto;
+        padding: 0;
+        margin: 20px 0;
+        border-radius: 10px;
+    }
+    li { width: auto;
+        padding: 7px 10px;
+        border-radius: 5px;
+        margin: 10px 0; }
+
+    .legend {
+        padding: 5px;
+        font: 10px sans-serif;
+        background: yellow;
+        box-shadow: 2px 2px 1px #888;
+    }
+
+
+    .d3-tip {
+        line-height: 1;
+        font-weight: bold;
+        padding: 12px;
+        background: rgba(0, 0, 0, 0.8);
+        color: #fff;
+        border-radius: 2px;
+    }
+
+    /* Creates a small triangle extender for the tooltip */
+    .d3-tip:after {
+        box-sizing: border-box;
+        display: inline;
+        font-size: 10px;
+        width: 100%;
+        line-height: 1;
+        color: rgba(0, 0, 0, 0.8);
+        content: "\25BC";
+        position: absolute;
+        text-align: center;
+    }
+
+    /* Style northward tooltips differently */
+    .d3-tip.n:after {
+        margin: -1px 0 0 0;
+        top: 100%;
+        left: 0;
+    }
+    </style>
+</head>
+<body>
+
+<section>
+    <h2>Animal Shelter Dog Records</h2>
+
+</section>
+<script>
+
+    var margin = {top: 20, right: 80, bottom: 30, left: 50},
+            width = 800 - margin.left - margin.right,
+            height = 640 - margin.top - margin.bottom;
+
+    var parseDate = d3.time.format("%Y-%m").parse;
+
+    var x = d3.time.scale()
+            .range([0, width]);
+
+    var y = d3.scale.linear()
+            .range([height, 0]);
+
+    var color = d3.scale.category10();
+
+    var xAxis = d3.svg.axis()
+            .scale(x)
+            .orient("bottom");
+
+    var yAxis = d3.svg.axis()
+            .scale(y)
+            .orient("left");
+
+    var line = d3.svg.line()
+            .interpolate("basis")
+            .x(function(d) { return x(d.date); })
+            .y(function(d) { return y(d.value); });
+
+    var tip = d3.tip()
+            .attr('class', 'd3-tip')
+            .offset([-10, 0])
+            .html(function(d) {
+                return "<strong>Type:</strong> " + d.type + "<br><strong>Adoptions</strong>: " + d.value;
+            });
+
+    var svg = d3.select("section").append("svg")
+            .attr("width", width + margin.left + margin.right)
+            .attr("height", height + margin.top + margin.bottom)
+            .append("g")
+            .attr("transform", "translate(" + margin.left + "," + margin.top + ")");
+
+    svg.call(tip);
+
+    d3.csv("data/data.csv", function(error, data) {
+        color.domain(d3.keys(data[0]).filter(function(key) { return key !== "date"; }));
+
+        data.forEach(function(d) {
+            d.date = parseDate(d.date);
+        });
+
+        var animals = color.domain().map(function(name) {
+            return {
+                name: name,
+                values: data.map(function(d) {
+                    return {date: d.date, value: +d[name]};
+                })
+            };
+        });
+
+        x.domain(d3.extent(data, function(d) { return d.date; }));
+
+        y.domain([
+            d3.min(animals, function(c) { return d3.min(c.values, function(v) { return v.value; }); }),
+            d3.max(animals, function(c) { return d3.max(c.values, function(v) { return v.value; }); })
+        ]);
+
+        svg.append("g")
+                .attr("class", "x axis")
+                .attr("transform", "translate(0," + height + ")")
+                .call(xAxis);
+
+        svg.append("g")
+                .attr("class", "y axis")
+                .call(yAxis)
+                .append("text")
+                .attr("transform", "rotate(-90)")
+                .attr("y", 6)
+                .attr("dy", ".71em")
+                .style("text-anchor", "end")
+                .text("Adoptions");
+
+        var animal = svg.selectAll(".animal")
+                .data(animals)
+                .enter().append("g")
+                .attr("class", "animal");
+
+        animal.append("path")
+                .attr("class", "line")
+                .attr("d", function(d) { return line(d.values); })
+                .style("stroke", function(d) { return color(d.name); })
+                .on('mouseover', tip.show)
+                .on('mouseout', tip.hide);
+
+        animal.append("text")
+                .datum(function(d) { return {name: d.name, value: d.values[d.values.length - 1]}; })
+                .attr("transform", function(d) { return "translate(" + x(d.value.date) + "," + y(d.value.value) + ")"; })
+                .attr("x", 3)
+                .attr("dy", ".35em")
+                .text(function(d) { return d.name; });
+
+        var legend = svg.append("g")
+                .attr("class", "legend")
+                .attr("x", width - 65)
+                .attr("y", 25)
+                .attr("height", 100)
+                .attr("width", 100);
+
+        legend.selectAll('rect')
+                .data(animals)
+                .enter()
+                .append("rect")
+                .attr("x", width - 65)
+                .attr("y", function(d, i){ return i *  20;})
+                .attr("width", 10)
+                .attr("height", 10)
+                .style("fill", function(d) {return color(d.name);});
+
+        legend.selectAll('text')
+                .data(animals)
+                .enter()
+                .append("text")
+                .attr("x", width - 52)
+                .attr("y", function(d, i){ return i *  20 + 9;})
+                .text(function(d) { return d.name; });
+
+    });
+
+</script>
+</body>
+
+</html>
